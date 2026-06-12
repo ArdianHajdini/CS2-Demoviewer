@@ -6,4 +6,6 @@ Runs locally only. No demo files are uploaded.
 node analyzer/analyze-demo.js "C:\\path\\to\\match.dem"
 ```
 
-The analyzer uses `@laihoe/demoparser2` as the stats source and prints one JSON object to stdout.
+The analyzer uses pinned `@laihoe/demoparser2@0.41.3` as the stats source and prints one JSON object to stdout.
+
+Release builds bundle a local `node.exe` next to this script. Development can use the system `node` runtime.

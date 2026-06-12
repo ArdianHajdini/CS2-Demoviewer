@@ -16,3 +16,4 @@ artifacts/cs2-demo-manager/src-tauri/target/
 artifacts/cs2-demo-manager/dist/
 artifacts/cs2-demo-manager/node_modules/
 artifacts/cs2-demo-manager/analyzer/node_modules/
+artifacts/cs2-demo-manager/analyzer/node.exe

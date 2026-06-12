@@ -100,8 +100,13 @@ fn copy_to_clipboard(command: String) -> Result<(), String> {
 #[tauri::command]
 async fn run_demo_analyzer(app: tauri::AppHandle, filepath: String) -> Result<Value, String> {
     let analyzer = find_analyzer(&app)?;
-    let child = Command::new("node")
-        .arg(analyzer)
+    let node_runtime = find_node_runtime(&analyzer);
+    let mut command = Command::new(node_runtime);
+    if let Some(parent) = analyzer.parent() {
+        command.current_dir(parent);
+    }
+    let child = command
+        .arg(&analyzer)
         .arg(filepath)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -136,6 +141,14 @@ fn find_analyzer(app: &tauri::AppHandle) -> Result<PathBuf, String> {
         app.path().resource_dir().map_err(|error| error.to_string())?.join("analyzer").join("analyze-demo.js"),
     ];
     candidates.into_iter().find(|path| path.exists()).ok_or("Could not find analyzer/analyze-demo.js".into())
+}
+
+fn find_node_runtime(analyzer: &Path) -> PathBuf {
+    analyzer
+        .parent()
+        .map(|parent| parent.join("node.exe"))
+        .filter(|path| path.exists())
+        .unwrap_or_else(|| PathBuf::from("node"))
 }
 
 pub fn run() {

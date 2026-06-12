@@ -7,6 +7,6 @@
     "analyze": "node analyze-demo.js"
   },
   "dependencies": {
-    "@laihoe/demoparser2": "latest"
+    "@laihoe/demoparser2": "0.41.3"
   }
 }

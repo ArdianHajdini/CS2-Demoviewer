@@ -253,13 +253,71 @@ function buildRounds(roundStarts, roundEnds, kills) {
   });
 }
 
+function buildKastTable(rounds, players, tickRate) {
+  const tradeWindowTicks = tickRate * 5;
+  const playerIds = [...players.keys()];
+  const kastRows = [];
+
+  for (const round of rounds) {
+    const validKills = round.kills.filter(isValidEnemyKill).sort((a, b) => a.tick - b.tick);
+    const deaths = new Set(round.kills.map((kill) => kill.victimSteamId).filter(Boolean));
+    const state = new Map();
+
+    for (const steamId of playerIds) {
+      state.set(steamId, {
+        steamId,
+        name: players.get(steamId)?.name || steamId,
+        roundNumber: round.roundNumber,
+        kill: false,
+        assist: false,
+        survived: !deaths.has(steamId),
+        traded: false,
+        kast: false,
+      });
+    }
+
+    for (const kill of validKills) {
+      if (state.has(kill.killerSteamId)) state.get(kill.killerSteamId).kill = true;
+      if (kill.assisterSteamId && state.has(kill.assisterSteamId)) state.get(kill.assisterSteamId).assist = true;
+    }
+
+    const tradedVictimCounts = new Map();
+    const tradeKillCounts = new Map();
+    for (const current of validKills) {
+      const tradedKill = validKills.find((previous) =>
+        previous.tick < current.tick &&
+        current.tick - previous.tick <= tradeWindowTicks &&
+        previous.killerSteamId === current.victimSteamId &&
+        previous.victimTeamNum === current.killerTeamNum
+      );
+      if (!tradedKill) continue;
+      tradedVictimCounts.set(tradedKill.victimSteamId, (tradedVictimCounts.get(tradedKill.victimSteamId) || 0) + 1);
+      tradeKillCounts.set(current.killerSteamId, (tradeKillCounts.get(current.killerSteamId) || 0) + 1);
+      if (state.has(tradedKill.victimSteamId)) state.get(tradedKill.victimSteamId).traded = true;
+      if (state.has(current.killerSteamId)) state.get(current.killerSteamId).traded = true;
+    }
+
+    for (const [steamId, count] of tradedVictimCounts) ensurePlayer(players, steamId).tradedDeaths += count;
+    for (const [steamId, count] of tradeKillCounts) ensurePlayer(players, steamId).tradeKills += count;
+
+    for (const row of state.values()) {
+      row.kast = row.kill || row.assist || row.survived || row.traded;
+      kastRows.push(row);
+    }
+  }
+
+  return kastRows;
+}
+
 function computeStats(events, ticks, header, playerInfo, updatedFields, demoPath, parserExports, warnings) {
   const rawKills = events.player_death || [];
   const rawDamages = events.player_hurt || [];
   const rawShots = events.weapon_fire || [];
+  const rawRoundStarts = events.round_start || [];
+  const rawRoundEnds = events.round_end || [];
   const kills = rawKills.map(normalizeKill).filter((kill) => kill.totalRoundsPlayed > 0 && kill.victimSteamId);
   const damages = rawDamages.map(normalizeDamage).filter((damage) => damage.totalRoundsPlayed > 0 && damage.attackerSteamId && damage.victimSteamId);
-  const rounds = buildRounds(events.round_start || [], events.round_end || [], kills);
+  const rounds = buildRounds(rawRoundStarts, rawRoundEnds, kills);
   const completedRounds = Math.max(rounds.filter((round) => round.endTick && round.endTick !== Number.MAX_SAFE_INTEGER).length, 1);
   const players = new Map();
 
@@ -277,7 +335,7 @@ function computeStats(events, ticks, header, playerInfo, updatedFields, demoPath
       if (kill.headshot) weapon.headshotKills += 1;
     }
     ensurePlayer(players, kill.victimSteamId, kill.victimName).deaths += 1;
-    if (kill.assisterSteamId && kill.assisterSteamId !== kill.killerSteamId && kill.assisterSteamId !== kill.victimSteamId) {
+    if (isValidEnemyKill(kill) && kill.assisterSteamId && kill.assisterSteamId !== kill.killerSteamId && kill.assisterSteamId !== kill.victimSteamId) {
       ensurePlayer(players, kill.assisterSteamId, kill.assisterName).assists += 1;
     }
   }
@@ -296,13 +354,22 @@ function computeStats(events, ticks, header, playerInfo, updatedFields, demoPath
     }
   }
 
+  const tickRate = Number(header.tickRate || header.tick_rate || 64);
+  const perRoundKast = buildKastTable(rounds, players, tickRate);
+  const kastByPlayer = new Map();
+  for (const row of perRoundKast) {
+    const current = kastByPlayer.get(row.steamId) || { kastRounds: 0, roundsPlayed: 0 };
+    current.roundsPlayed += 1;
+    if (row.kast) current.kastRounds += 1;
+    kastByPlayer.set(row.steamId, current);
+  }
+
   for (const player of players.values()) {
-    const survivedRounds = rounds.length - player.deaths;
-    const activeRounds = Math.max(rounds.length || completedRounds, 1);
+    const activeRounds = Math.max(kastByPlayer.get(player.steamId)?.roundsPlayed || rounds.length || completedRounds, 1);
     player.kd = Number((player.kills / Math.max(player.deaths, 1)).toFixed(2));
     player.adr = Number((player.damage / activeRounds).toFixed(1));
     player.headshotPercent = player.kills ? Number(((player.headshotKills / player.kills) * 100).toFixed(1)) : 0;
-    player.kastRounds = Math.max(0, Math.min(activeRounds, player.kills + player.assists + survivedRounds));
+    player.kastRounds = kastByPlayer.get(player.steamId)?.kastRounds || 0;
     player.kastPercent = Number(((player.kastRounds / activeRounds) * 100).toFixed(1));
   }
 
@@ -314,8 +381,7 @@ function computeStats(events, ticks, header, playerInfo, updatedFields, demoPath
   warnings.push("Events with total_rounds_played = 0 are excluded as warmup/knife-round data");
   if (missingFields.length) warnings.push(`demoparser2 did not advertise these requested tick fields: ${missingFields.join(", ")}`);
   if (missingFields.includes("player_slot")) warnings.push("player_slot is unavailable; Team T/CT voice masks use inferred player order and should be verified against source2-demo");
-  warnings.push("KAST is K/A/S-only in v1; trade window calculation is prepared but not final");
-  warnings.push("Side stats are left at zero until reliable per-tick side mapping is verified");
+  warnings.push("Side stats are hidden until reliable per-event side mapping is verified");
 
   return {
     success: true,
@@ -323,7 +389,7 @@ function computeStats(events, ticks, header, playerInfo, updatedFields, demoPath
       filepath: demoPath,
       filename: path.basename(demoPath),
       mapName: String(header.map_name || header.mapName || header.map || "unknown"),
-      tickRate: Number(header.tickRate || header.tick_rate || 64),
+      tickRate,
       totalRounds: rounds.length,
       parser: "demoparser2",
       analyzedAt: new Date().toISOString(),
@@ -343,6 +409,7 @@ function computeStats(events, ticks, header, playerInfo, updatedFields, demoPath
     })),
     debug: {
       rawKillsCount: rawKills.length,
+      rawDeathsCount: rawKills.length,
       rawDamagesCount: rawDamages.length,
       rawShotsCount: rawShots.length,
       rawRoundsCount: rounds.length,
@@ -354,6 +421,11 @@ function computeStats(events, ticks, header, playerInfo, updatedFields, demoPath
       playerInfo,
       rawKills,
       rawDamages,
+      rawRoundStarts,
+      rawRoundEnds,
+      normalizedKills: kills,
+      normalizedDamages: damages,
+      perRoundKast,
       rawRounds: rounds,
       computedPlayers: [...players.values()],
       voicePlayers,

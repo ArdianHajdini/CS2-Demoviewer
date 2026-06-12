@@ -30,6 +30,7 @@ function compactAnalysis(result: DemoAnalysisResult): DemoAnalysisResult {
     deathReviews: result.deathReviews?.map((review) => ({ ...review, fightTimeline: undefined })),
     debug: {
       rawKillsCount: result.debug.rawKillsCount,
+      rawDeathsCount: result.debug.rawDeathsCount,
       rawDamagesCount: result.debug.rawDamagesCount,
       rawShotsCount: result.debug.rawShotsCount,
       rawRoundsCount: result.debug.rawRoundsCount,
@@ -37,6 +38,7 @@ function compactAnalysis(result: DemoAnalysisResult): DemoAnalysisResult {
       availableParserExports: result.debug.availableParserExports,
       readFields: result.debug.readFields,
       missingFields: result.debug.missingFields,
+      perRoundKast: result.debug.perRoundKast,
       voicePlayers: result.debug.voicePlayers,
     },
   };

@@ -127,6 +127,7 @@ export interface DemoEvents {
 
 export interface StatsDebugInfo {
   rawKillsCount: number;
+  rawDeathsCount?: number;
   rawDamagesCount: number;
   rawShotsCount: number;
   rawRoundsCount: number;
@@ -136,9 +137,25 @@ export interface StatsDebugInfo {
   missingFields?: string[];
   rawKills?: unknown[];
   rawDamages?: unknown[];
+  rawRoundStarts?: unknown[];
+  rawRoundEnds?: unknown[];
+  normalizedKills?: unknown[];
+  normalizedDamages?: unknown[];
+  perRoundKast?: KastRoundDebug[];
   rawRounds?: unknown[];
   computedPlayers?: unknown[];
   voicePlayers?: VoicePlayerDebug[];
+}
+
+export interface KastRoundDebug {
+  steamId: string;
+  name: string;
+  roundNumber: number;
+  kill: boolean;
+  assist: boolean;
+  survived: boolean;
+  traded: boolean;
+  kast: boolean;
 }
 
 export interface VoicePlayerDebug {

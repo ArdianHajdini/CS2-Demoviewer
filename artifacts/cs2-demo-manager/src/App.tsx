@@ -152,9 +152,16 @@ export default function App() {
   }
 
   async function exportDebug() {
-    if (!analysis || !selected) return;
+    if (!selected) return;
+    let exportSource = analysis ?? analysisCache[selected.filepath];
+    if (!exportSource?.debug.rawKills?.length) {
+      setNotice({ kind: "info", text: "Erstelle vollständigen Debug-Export mit Raw Rows. Analysiere Demo erneut lokal..." });
+      exportSource = await analyzeDemo(selected.filepath);
+      setAnalysis(exportSource);
+      setAnalysisCache((cache) => cacheAnalysis(cache, selected.filepath, exportSource));
+    }
     const filepath = `${selected.filepath}.stats-debug.json`;
-    await exportStatsDebug(filepath, analysis.debug);
+    await exportStatsDebug(filepath, exportSource.debug);
     setNotice({ kind: "success", text: `Exportiert: ${filepath}` });
   }
 
@@ -230,7 +237,6 @@ export default function App() {
                   <PathInput label="Demo-Datei" value={sourcePath} onChange={setSourcePath} placeholder="C:\Users\ardia\Downloads\match.dem.zst" />
                   <div className="flex flex-wrap gap-2">
                     <Button onClick={() => doImport()} disabled={busy}>Importieren</Button>
-                    <Button tone="secondary" onClick={() => setSourcePath("C:\\Users\\ardia\\Downloads\\1-09fdf9ba-246f-4ca4-a250-7639a6f5c790-1-1.dem.zst")}>Test-Demo einsetzen</Button>
                   </div>
 
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">

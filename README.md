@@ -33,7 +33,7 @@ In der App den CS2 Replay-Ordner eintragen und eine lokale Demo-Datei importiere
 
 ## Stats Analyse
 
-In der Demo-Liste auf `Statistics` klicken und `Analyse starten` ausfuehren. Tauri startet lokal:
+Nach dem Import wird die Demo automatisch lokal analysiert und ein kompakter Cache in der App gespeichert. In der Demo-Liste auf `Statistiken` klicken, um gespeicherte Stats zu sehen oder `Analyse starten` fuer eine neue Analyse auszufuehren. Tauri startet lokal:
 
 ```bash
 node analyzer/analyze-demo.js "C:\\path\\to\\demo.dem"
@@ -53,8 +53,8 @@ Der Analyzer schreibt JSON auf stdout. Die UI blockiert nicht dauerhaft; das Bac
 - Damage und ADR kommen aus `player_hurt`; ADR = Damage / geparste Runden.
 - Headshot % = Headshot-Kills / Kills.
 - Entry Kill/Death = erster gueltiger Kill einer Runde.
-- KAST ist in Version 1 als K/A/S-like vorbereitet; Trades werden im Debug als noch nicht final gemeldet.
-- T/CT-Sidestats bleiben null, bis verlaessliche per-tick Side-Zuordnung verifiziert ist.
+- KAST wird pro Spieler pro Runde berechnet: Kill, Assist, Survive oder Trade innerhalb von 5 Sekunden.
+- T/CT-Sidestats sind in der UI versteckt, bis verlaessliche per-event Side-Zuordnung verifiziert ist.
 
 ## Debug Export
 
@@ -64,7 +64,13 @@ Der Analyzer schreibt JSON auf stdout. Die UI blockiert nicht dauerhaft; das Bac
 match.dem.stats-debug.json
 ```
 
-Enthalten sind Raw-Kills, Raw-Damages, Raw-Rounds, Parser-Exports, Warnungen und berechnete Spielerwerte.
+Enthalten sind Raw `player_death` Rows, Raw `player_hurt` Rows, Raw `round_start` / `round_end` Rows, normalisierte Kills/Damages, per-round KAST-Tabelle, Parser-Exports, Warnungen und berechnete Spielerwerte.
+
+## Analyzer Packaging
+
+Development nutzt `node` aus der lokalen Entwicklerumgebung. Vor `npm run tauri build` kopiert `npm run prepare:analyzer-runtime` die aktuelle Windows `node.exe` nach `analyzer/node.exe`. Tauri bundelt den Analyzer-Ordner als Resource, damit der Installer fuer normale Nutzer keine manuelle Node-Installation voraussetzt.
+
+Wichtig: `analyzer/node.exe` ist absichtlich in `.gitignore`, wird aber beim lokalen Build und in GitHub Actions vor dem Tauri-Build erzeugt.
 
 ## Windows Build
 
