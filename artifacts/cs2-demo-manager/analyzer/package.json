@@ -1,0 +1,12 @@
+{
+  "name": "cs2-demo-manager-analyzer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "analyze": "node analyze-demo.js"
+  },
+  "dependencies": {
+    "@laihoe/demoparser2": "latest"
+  }
+}
